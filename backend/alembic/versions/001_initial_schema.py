@@ -65,7 +65,7 @@ def upgrade() -> None:
         sa.Column("avatar_url", sa.String(), nullable=True),
         sa.Column(
             "plan",
-            sa.Enum("free", "pro", name="plan"),
+            plan_enum,
             nullable=False,
             server_default="free",
         ),
@@ -96,13 +96,13 @@ def upgrade() -> None:
         sa.Column("gmail_address", sa.String(), nullable=False),
         sa.Column(
             "account_type",
-            sa.Enum("personal", "edu", "work", "freelance", name="accounttype"),
+            account_type_enum,
             nullable=False,
             server_default="personal",
         ),
         sa.Column(
             "status",
-            sa.Enum("active", "needs_reauth", "syncing", name="accountstatus"),
+            account_status_enum,
             nullable=False,
             server_default="active",
         ),
@@ -136,7 +136,7 @@ def upgrade() -> None:
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column(
             "provider",
-            sa.Enum("anthropic", "openai", "xai", "google", name="aiprovider"),
+            ai_provider_enum,
             nullable=False,
         ),
         sa.Column("api_key_encrypted", sa.String(), nullable=False),
@@ -208,7 +208,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "chunk_type",
-            sa.Enum("episodic", "semantic", "relational", name="chunktype"),
+            chunk_type_enum,
             nullable=False,
         ),
         sa.Column(
@@ -250,7 +250,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.Column(
             "type",
-            sa.Enum("person", "organization", "deadline", "topic", name="identitytype"),
+            identity_type_enum,
             nullable=False,
         ),
         sa.Column("context", sa.Text(), nullable=True),
@@ -302,7 +302,7 @@ def upgrade() -> None:
         sa.Column("conversation_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column(
             "role",
-            sa.Enum("user", "assistant", "system", name="messagerole"),
+            message_role_enum,
             nullable=False,
         ),
         sa.Column("content", sa.Text(), nullable=False),
