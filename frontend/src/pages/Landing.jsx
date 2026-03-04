@@ -192,7 +192,7 @@ export default function Landing() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               {HOW_IT_WORKS.map(({ step, title, desc }, i) => (
-                <div key={step} className="text-center group">
+                <div key={step} className="relative text-center group">
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg font-bold mx-auto mb-4 text-white transition-transform duration-200 group-hover:scale-110"
                        style={{ background: "linear-gradient(135deg, #4f46e5, #6366f1)" }}>
                     {step}
