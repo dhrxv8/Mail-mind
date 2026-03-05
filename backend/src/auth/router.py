@@ -1,30 +1,37 @@
+import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from jose import JWTError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user
 from src.auth.google import build_auth_url, exchange_code, get_userinfo, revoke_token
 from src.auth.jwt import (
+    REFRESH_COOKIE,
+    clear_auth_cookies,
     create_access_token,
     create_oauth_state_token,
     create_refresh_token,
     decode_oauth_state_token,
     decode_token,
+    set_auth_cookies,
 )
 from src.billing.dependencies import FREE_ACCOUNT_LIMIT
 from src.config import get_settings
 from src.database import get_db
 from src.models.gmail_account import AccountStatus, AccountType, GmailAccount
 from src.models.user import Plan, User
-from src.schemas.auth import RefreshRequest, TokenResponse
 from src.security.encryption import decrypt, encrypt
 
+log = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
@@ -53,9 +60,6 @@ async def get_add_account_url(
     Returns a Google OAuth URL that will add a new Gmail account to the
     currently authenticated user.  The frontend navigates to the URL via
     ``window.location.href``.
-
-    The state JWT embeds the user_id so the callback can associate the new
-    account without requiring a cookie or session store.
     """
     count = (
         db.query(GmailAccount)
@@ -82,6 +86,7 @@ async def get_add_account_url(
 
 @router.get("/google/callback", summary="Google OAuth callback")
 async def google_callback(
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     db: Session = Depends(get_db),
@@ -90,18 +95,19 @@ async def google_callback(
     Handles Google's redirect after the user grants permission.
 
     Branches on the ``action`` encoded in the signed state token:
-    - **login** → upsert user + primary Gmail account, issue JWT pair,
-      redirect to ``/auth/callback`` on the frontend.
+    - **login** → upsert user + primary Gmail account, set httpOnly auth
+      cookies, redirect to ``/auth/callback`` on the frontend.
     - **add_account** → add (or re-auth) a Gmail account for an existing
       authenticated user, redirect to ``/settings`` on the frontend.
     """
+    redis = request.app.state.arq_redis
+
     # ── Decode state ──────────────────────────────────────────────────────────
     try:
         state_data = decode_oauth_state_token(state)
         action: str = state_data.get("action", "login")
         state_user_id: Optional[str] = state_data.get("user_id")
     except JWTError:
-        # Malformed state — abort; never silently proceed with bad CSRF state
         return RedirectResponse(
             url=f"{settings.FRONTEND_URL}/login?error=invalid_state",
             status_code=status.HTTP_302_FOUND,
@@ -111,6 +117,7 @@ async def google_callback(
     try:
         token_data = await exchange_code(code)
     except Exception:
+        log.exception("OAuth code exchange failed")
         dest = "/settings" if action == "add_account" else "/login"
         return RedirectResponse(
             url=f"{settings.FRONTEND_URL}{dest}?error=oauth_exchange_failed",
@@ -124,6 +131,7 @@ async def google_callback(
     try:
         userinfo = await get_userinfo(google_access_token)
     except Exception:
+        log.exception("Google userinfo fetch failed")
         dest = "/settings" if action == "add_account" else "/login"
         return RedirectResponse(
             url=f"{settings.FRONTEND_URL}{dest}?error=userinfo_failed",
@@ -142,6 +150,7 @@ async def google_callback(
     # ── Branch: add_account ───────────────────────────────────────────────────
     if action == "add_account" and state_user_id:
         return await _handle_add_account(
+            redis=redis,
             db=db,
             user_id=state_user_id,
             google_email=google_email,
@@ -160,6 +169,16 @@ async def google_callback(
         google_access_token=google_access_token,
         google_refresh_token=google_refresh_token,
     )
+
+
+# ── Logout ────────────────────────────────────────────────────────────────────
+
+@router.post("/logout", summary="Clear auth cookies")
+async def logout():
+    """Clear httpOnly auth cookies and return 200."""
+    response = JSONResponse(content={"detail": "Logged out."})
+    clear_auth_cookies(response)
+    return response
 
 
 # ── Revoke ────────────────────────────────────────────────────────────────────
@@ -196,13 +215,12 @@ async def revoke_google_account(
             detail="Cannot remove your primary login account.",
         )
 
-    # Best-effort token revocation with Google
     try:
         refresh_tok = decrypt(account.refresh_token_encrypted)
         if refresh_tok:
             await revoke_token(refresh_tok)
     except Exception:
-        pass  # Proceed with local deletion even if Google revocation fails
+        pass
 
     db.delete(account)
     db.commit()
@@ -211,11 +229,19 @@ async def revoke_google_account(
 
 # ── Token refresh ─────────────────────────────────────────────────────────────
 
-@router.post("/refresh", response_model=TokenResponse, summary="Refresh JWT tokens")
-async def refresh_tokens(body: RefreshRequest, db: Session = Depends(get_db)):
-    """Issue a new access + refresh token pair from a valid refresh token."""
+@router.post("/refresh", summary="Refresh JWT tokens via httpOnly cookie")
+@limiter.limit("10/minute")
+async def refresh_tokens(request: Request, db: Session = Depends(get_db)):
+    """Read the refresh token from the httpOnly cookie and issue a new pair."""
+    refresh_tok = request.cookies.get(REFRESH_COOKIE, "")
+    if not refresh_tok:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing refresh token.",
+        )
+
     try:
-        payload = decode_token(body.refresh_token)
+        payload = decode_token(refresh_tok)
         if payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -232,10 +258,12 @@ async def refresh_tokens(body: RefreshRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    return TokenResponse(
-        access_token=create_access_token(str(user.id)),
-        refresh_token=create_refresh_token(str(user.id)),
-    )
+    new_access = create_access_token(str(user.id))
+    new_refresh = create_refresh_token(str(user.id))
+
+    response = JSONResponse(content={"detail": "Tokens refreshed."})
+    set_auth_cookies(response, new_access, new_refresh)
+    return response
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
@@ -249,7 +277,7 @@ async def _handle_login(
     google_access_token: str,
     google_refresh_token: str,
 ) -> RedirectResponse:
-    """Upsert user + primary Gmail account, issue JWT pair, redirect to frontend."""
+    """Upsert user + primary Gmail account, set httpOnly cookies, redirect."""
     user = db.query(User).filter(User.email == google_email).first()
     if not user:
         user = User(
@@ -301,16 +329,16 @@ async def _handle_login(
     jwt_access = create_access_token(str(user.id))
     jwt_refresh = create_refresh_token(str(user.id))
 
-    return RedirectResponse(
-        url=(
-            f"{settings.FRONTEND_URL}/auth/callback"
-            f"?access_token={jwt_access}&refresh_token={jwt_refresh}"
-        ),
+    response = RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/auth/callback",
         status_code=status.HTTP_302_FOUND,
     )
+    set_auth_cookies(response, jwt_access, jwt_refresh)
+    return response
 
 
 async def _handle_add_account(
+    redis,
     db: Session,
     user_id: str,
     google_email: str,
@@ -339,7 +367,6 @@ async def _handle_add_account(
     )
 
     if existing_account:
-        # Re-auth: refresh tokens and clear the stale flag
         existing_account.access_token_encrypted = encrypt(google_access_token)
         if google_refresh_token:
             existing_account.refresh_token_encrypted = encrypt(google_refresh_token)
@@ -352,7 +379,6 @@ async def _handle_add_account(
             status_code=status.HTTP_302_FOUND,
         )
 
-    # New account — check plan limit
     count = (
         db.query(GmailAccount).filter(GmailAccount.user_id == user.id).count()
     )
@@ -377,19 +403,11 @@ async def _handle_add_account(
     db.commit()
     db.refresh(new_account)
 
-    # Kick off Pub/Sub watch registration and initial full sync in the background.
-    # Import here to avoid circular import at module load time.
-    from arq import create_pool
-    from arq.connections import RedisSettings as _RS
-
     try:
-        _pool = await create_pool(_RS.from_dsn(settings.REDIS_URL))
-        await _pool.enqueue_job("initial_watch_setup", str(new_account.id))
-        await _pool.enqueue_job("initial_sync_job", str(new_account.id))
-        await _pool.close()
+        await redis.enqueue_job("initial_watch_setup", str(new_account.id))
+        await redis.enqueue_job("initial_sync_job", str(new_account.id))
     except Exception:
-        import logging as _log
-        _log.getLogger(__name__).warning(
+        log.warning(
             "Could not enqueue post-connect jobs for account %s "
             "(Redis may not be running in dev)",
             new_account.id,

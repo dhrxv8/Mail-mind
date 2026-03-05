@@ -1,24 +1,28 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from src.auth.jwt import decode_token
+from src.auth.jwt import ACCESS_COOKIE, decode_token
 from src.database import get_db
 from src.models.user import User
 
-_bearer = HTTPBearer()
-
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
     """
-    FastAPI dependency that validates the Bearer JWT and returns the User.
-    Raises 401 if the token is missing, invalid, expired, or wrong type.
+    FastAPI dependency that reads the access JWT from the httpOnly cookie
+    and returns the authenticated User.
+    Raises 401 if the cookie is missing, invalid, expired, or wrong type.
     """
-    token = credentials.credentials
+    token = request.cookies.get(ACCESS_COOKIE, "")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
@@ -31,7 +35,6 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     user = db.query(User).filter(User.id == user_id).first()

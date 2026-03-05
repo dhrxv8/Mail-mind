@@ -5,11 +5,13 @@ import AddAccountModal from "../components/AddAccountModal.jsx";
 import BillingCard from "../components/BillingCard.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import { useAccounts } from "../hooks/useAccounts.js";
 import { setupWatch } from "../api/gmail.js";
 import { getMemoryStats } from "../api/memory.js";
 import { getInboxStats } from "../api/inbox.js";
 import { saveAiKey, getAiKey, deleteAiKey } from "../api/settings.js";
+import { cancelSubscription } from "../api/billing.js";
 
 const AI_PROVIDERS = [
   { value: "anthropic", label: "Anthropic (Claude)",  defaultModel: "claude-3-5-sonnet-20241022", placeholder: "sk-ant-api03-…" },
@@ -20,8 +22,11 @@ const AI_PROVIDERS = [
 
 export default function Settings() {
   const { user, fetchUser } = useAuth();
+  const addToast = useToast();
   const { accounts, status, loading, error, refetch } = useAccounts();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const [showAddModal, setShowAddModal]   = useState(false);
   const [banner, setBanner]               = useState(null);
@@ -146,6 +151,20 @@ export default function Settings() {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true);
+    try {
+      await cancelSubscription();
+      await fetchUser();
+      setShowCancelModal(false);
+      addToast("Subscription cancelled successfully.", "success");
+    } catch (err) {
+      addToast(err?.response?.data?.detail ?? "Failed to cancel. Please try again.", "error");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   const canAddMore = status?.can_add_more ?? false;
   const isAtLimit  = status ? !status.can_add_more : false;
   const limitLabel = status?.limit === -1 ? "Unlimited (Pro)" : `${status?.count ?? "…"} / ${status?.limit ?? "…"}`;
@@ -197,14 +216,24 @@ export default function Settings() {
               <div>
                 <p className="font-semibold text-slate-900">{user?.name}</p>
                 <p className="text-slate-500 text-sm">{user?.email}</p>
-                <span className={`inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  user?.plan === "pro"
-                    ? "text-amber-700"
-                    : "bg-slate-100 text-slate-500"
-                }`}
-                  style={user?.plan === "pro" ? { background: "linear-gradient(135deg, #fef3c7, #fde68a)" } : undefined}>
-                  {user?.plan === "pro" ? "★ Pro" : "Free Plan"}
-                </span>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    user?.plan === "pro"
+                      ? "text-amber-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                    style={user?.plan === "pro" ? { background: "linear-gradient(135deg, #fef3c7, #fde68a)" } : undefined}>
+                    {user?.plan === "pro" ? "★ Pro" : "Free Plan"}
+                  </span>
+                  {user?.plan === "pro" && (
+                    <button
+                      onClick={() => setShowCancelModal(true)}
+                      className="text-[11px] text-slate-400 hover:text-red-500 transition-colors font-medium"
+                    >
+                      Cancel plan
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -327,6 +356,42 @@ export default function Settings() {
 
       {showAddModal && (
         <AddAccountModal onClose={() => setShowAddModal(false)} canAdd={canAddMore} />
+      )}
+
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !cancelLoading && setShowCancelModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 animate-slide-up">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-1">Cancel Pro Subscription?</h3>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              You'll immediately lose access to unlimited accounts, full email history, and real-time sync. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelLoading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-60"
+              >
+                Keep Pro
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelLoading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+              >
+                {cancelLoading && (
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                {cancelLoading ? "Cancelling…" : "Cancel Subscription"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

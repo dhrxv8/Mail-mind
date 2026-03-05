@@ -74,6 +74,7 @@ export default function EmailDraftModal({ email, onClose, onSent }) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

@@ -8,6 +8,9 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from src.accounts.router import router as accounts_router
 from src.ai.router import router as ai_router
@@ -29,6 +32,8 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 _startup_time = time.time()
 
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +54,9 @@ app = FastAPI(
     redoc_url="/redoc" if not settings.is_production else None,
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -114,7 +122,7 @@ async def health_check():
         await app.state.arq_redis.ping()
         redis_ok = True
     except Exception:
-        pass
+        log.debug("Redis health check failed", exc_info=True)
     return {
         "status": "ok",
         "version": "1.0.0",

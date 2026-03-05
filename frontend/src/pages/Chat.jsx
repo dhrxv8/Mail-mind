@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import ChatInput from "../components/ChatInput.jsx";
 import MessageBubble from "../components/MessageBubble.jsx";
 import Sidebar from "../components/Sidebar.jsx";
@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useChat } from "../hooks/useChat.js";
 
 export default function Chat() {
+  const { conversationId: urlConvId } = useParams();
   const { user } = useAuth();
   const {
     conversations,
@@ -23,6 +24,16 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef  = useRef(null);
   const inputReady = !!user;
+  const deepLinked = useRef(false);
+
+  useEffect(() => {
+    if (urlConvId && !deepLinked.current && conversations.length > 0) {
+      deepLinked.current = true;
+      if (urlConvId !== activeConvId) {
+        selectConversation(urlConvId).catch(() => {});
+      }
+    }
+  }, [urlConvId, conversations, activeConvId, selectConversation]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

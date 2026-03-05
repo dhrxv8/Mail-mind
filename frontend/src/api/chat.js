@@ -47,16 +47,13 @@ export const streamMessage = async (
   onError,
   signal,
 ) => {
-  const token = localStorage.getItem("access_token");
   let response;
 
   try {
     response = await fetch(`${API_BASE}/chat/${conversationId}/message`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ content }),
       signal,
     });

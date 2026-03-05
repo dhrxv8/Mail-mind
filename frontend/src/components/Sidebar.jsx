@@ -53,8 +53,8 @@ export default function Sidebar() {
     return () => { cancelled = true; };
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/", { replace: true });
   };
 

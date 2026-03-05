@@ -284,7 +284,7 @@ async def generate_draft(
         log.exception("generate_draft: AI call failed for email %s", email_id)
         raise HTTPException(
             status_code=502,
-            detail=f"AI generation failed: {exc}",
+            detail="AI generation failed. Please try again.",
         ) from exc
 
     return DraftResponse(
@@ -332,7 +332,7 @@ async def send_email_reply(
         log.exception("send_email_reply: Gmail send failed for email %s", email_id)
         raise HTTPException(
             status_code=502,
-            detail=f"Gmail send failed: {exc}",
+            detail="Failed to send email. Please try again.",
         ) from exc
 
     email.replied_to = True

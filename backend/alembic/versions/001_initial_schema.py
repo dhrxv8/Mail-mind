@@ -69,7 +69,7 @@ def upgrade() -> None:
             nullable=False,
             server_default="free",
         ),
-        sa.Column("stripe_customer_id", sa.String(), nullable=True),
+        sa.Column("razorpay_customer_id", sa.String(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -84,7 +84,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email"),
-        sa.UniqueConstraint("stripe_customer_id"),
+        sa.UniqueConstraint("razorpay_customer_id"),
     )
     op.create_index("ix_users_email", "users", ["email"])
 

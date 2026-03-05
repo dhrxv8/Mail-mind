@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { detectCurrency } from "../api/billing.js";
+import GoogleIcon from "../components/icons/GoogleIcon.jsx";
 
 const FEATURES = [
   {
@@ -337,11 +338,14 @@ export default function Landing() {
 
 function FaqItem({ question, answer }) {
   const [open, setOpen] = useState(false);
+  const id = question.replace(/\s+/g, "-").toLowerCase().slice(0, 30);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden transition-shadow hover:shadow-card-hover">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={`faq-${id}`}
         className="w-full flex items-center justify-between p-5 text-left"
       >
         <h3 className="font-semibold text-slate-900 text-sm pr-4">{question}</h3>
@@ -354,6 +358,8 @@ function FaqItem({ question, answer }) {
         </svg>
       </button>
       <div
+        id={`faq-${id}`}
+        role="region"
         className={`grid transition-all duration-200 ease-out ${
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
         }`}
@@ -441,10 +447,3 @@ function PricingSection() {
   );
 }
 
-function GoogleIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20.283 10.356h-8.327v3.451h4.792c-.446 2.193-2.313 3.453-4.792 3.453a5.27 5.27 0 0 1-5.279-5.28 5.27 5.27 0 0 1 5.279-5.279c1.259 0 2.397.447 3.29 1.178l2.6-2.599c-1.584-1.381-3.615-2.233-5.89-2.233a8.908 8.908 0 0 0-8.934 8.934 8.907 8.907 0 0 0 8.934 8.934c4.467 0 8.529-3.249 8.529-8.934 0-.528-.081-1.097-.202-1.625z" />
-    </svg>
-  );
-}

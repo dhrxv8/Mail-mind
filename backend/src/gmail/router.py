@@ -183,7 +183,7 @@ async def gmail_webhook(
     """
     # ── Verify shared secret ─────────────────────────────────────────────────
     token = request.query_params.get("token", "")
-    if token != settings.PUBSUB_VERIFICATION_TOKEN:
+    if not settings.PUBSUB_VERIFICATION_TOKEN or token != settings.PUBSUB_VERIFICATION_TOKEN:
         log.warning("Gmail webhook received request with invalid token")
         return  # 204 — do not allow retry storms
 

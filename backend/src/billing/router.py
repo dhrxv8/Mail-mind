@@ -3,10 +3,9 @@ Billing router — Razorpay integration
 
 POST /billing/create-subscription   create a Razorpay subscription (free -> pro)
 POST /billing/verify-payment        verify Razorpay payment signature and activate pro
+POST /billing/cancel-subscription   cancel the active Razorpay subscription
 POST /billing/webhook               receive and process Razorpay webhook events
 """
-
-from __future__ import annotations
 
 import hashlib
 import hmac
@@ -15,6 +14,8 @@ import logging
 
 import razorpay
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user
@@ -30,6 +31,7 @@ from src.models.user import Plan, User
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["billing"])
 settings = get_settings()
+limiter = Limiter(key_func=get_remote_address)
 
 _rz_client: razorpay.Client | None = None
 
@@ -51,7 +53,9 @@ def _get_razorpay_client() -> razorpay.Client:
 # -- POST /billing/create-subscription --------------------------------------
 
 @router.post("/create-subscription", response_model=CreateSubscriptionResponse)
+@limiter.limit("10/minute")
 async def create_subscription(
+    request: Request,
     body: CreateSubscriptionRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -108,7 +112,9 @@ async def create_subscription(
 # -- POST /billing/verify-payment -------------------------------------------
 
 @router.post("/verify-payment")
+@limiter.limit("10/minute")
 async def verify_payment(
+    request: Request,
     body: VerifyPaymentRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -139,6 +145,48 @@ async def verify_payment(
     )
 
     return {"status": "ok", "plan": "pro"}
+
+
+# -- POST /billing/cancel-subscription --------------------------------------
+
+@router.post("/cancel-subscription")
+@limiter.limit("5/minute")
+async def cancel_subscription(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Cancel the user's active Razorpay subscription."""
+    client = _get_razorpay_client()
+
+    if current_user.plan != Plan.pro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You are not on the Pro plan.",
+        )
+
+    sub_id = current_user.razorpay_subscription_id
+    if not sub_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active subscription found.",
+        )
+
+    try:
+        client.subscription.cancel(sub_id, {"cancel_at_cycle_end": 0})
+    except Exception:
+        log.exception("Razorpay subscription cancel failed for sub=%s", sub_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to cancel subscription. Please try again.",
+        )
+
+    current_user.plan = Plan.free
+    current_user.razorpay_subscription_id = None
+    db.commit()
+
+    log.info("User %s cancelled subscription %s", current_user.id, sub_id)
+    return {"status": "ok", "plan": "free"}
 
 
 # -- POST /billing/webhook --------------------------------------------------

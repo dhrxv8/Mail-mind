@@ -1,33 +1,38 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 /**
  * Handles the redirect from the backend after Google OAuth completes.
- * The backend sends: /auth/callback?access_token=...&refresh_token=...
+ * The backend already set httpOnly auth cookies on the redirect response,
+ * so we just need to verify auth state and navigate to the dashboard.
  */
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { fetchUser } = useAuth();
   const navigate = useNavigate();
+  const handled = useRef(false);
 
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
+    if (handled.current) return;
+    handled.current = true;
 
-    if (accessToken && refreshToken) {
-      login(accessToken, refreshToken);
-      navigate("/dashboard", { replace: true });
-    } else {
+    const error = searchParams.get("error");
+    if (error) {
       navigate("/login?error=auth_failed", { replace: true });
+      return;
     }
-  }, [searchParams, login, navigate]);
+
+    fetchUser().then(() => {
+      navigate("/dashboard", { replace: true });
+    });
+  }, [searchParams, fetchUser, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4" />
-        <p className="text-gray-600 text-sm">Connecting your account…</p>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-600 mx-auto mb-4" />
+        <p className="text-slate-600 text-sm">Connecting your account…</p>
       </div>
     </div>
   );

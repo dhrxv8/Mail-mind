@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
 import {
   createSubscription,
   verifyPayment,
+  cancelSubscription,
   openRazorpayCheckout,
   detectCurrency,
 } from "../api/billing.js";
 
 export default function BillingCard() {
   const { user, fetchUser } = useAuth();
+  const addToast = useToast();
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [error, setError] = useState(null);
   const isPro = user?.plan === "pro";
 
@@ -35,6 +40,7 @@ export default function BillingCard() {
       });
 
       await fetchUser();
+      addToast("Upgraded to Pro! Welcome aboard.", "success");
     } catch (err) {
       if (err?.message !== "cancelled") {
         setError(err?.response?.data?.detail ?? "Payment failed. Please try again.");
@@ -44,27 +50,79 @@ export default function BillingCard() {
     }
   };
 
+  const handleCancel = async () => {
+    setCancelling(true);
+    setError(null);
+    try {
+      await cancelSubscription();
+      await fetchUser();
+      setShowCancelConfirm(false);
+      addToast("Subscription cancelled. You're back on the Free plan.", "info");
+    } catch (err) {
+      setError(err?.response?.data?.detail ?? "Failed to cancel. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const priceLabel = detectCurrency() === "inr" ? "₹499/mo" : "$6/mo";
 
   return (
     <div>
       {isPro ? (
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className="text-sm text-slate-700">
-                You&apos;re on the{" "}
-                <span className="font-semibold text-brand-600">Pro plan</span>
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-sm text-slate-700">
+                  You&apos;re on the{" "}
+                  <span className="font-semibold text-brand-600">Pro plan</span>
+                </p>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-amber-700"
+                      style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)" }}>
+                  PRO
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Unlimited accounts · full email history · real-time sync.
               </p>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-amber-700"
-                    style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)" }}>
-                PRO
-              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Unlimited accounts · full email history · real-time sync.
-            </p>
           </div>
+
+          {!showCancelConfirm ? (
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="text-xs text-slate-400 hover:text-red-500 transition-colors font-medium"
+            >
+              Cancel subscription
+            </button>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-slide-up">
+              <p className="text-sm text-red-800 font-medium mb-1">Cancel your Pro subscription?</p>
+              <p className="text-xs text-red-600 mb-4">
+                You'll lose access to unlimited accounts, full history, and real-time sync immediately.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {cancelling && (
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {cancelling ? "Cancelling…" : "Yes, cancel"}
+                </button>
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  disabled={cancelling}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-60"
+                >
+                  Keep Pro
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div>

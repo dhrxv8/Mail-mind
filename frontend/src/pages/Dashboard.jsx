@@ -9,18 +9,7 @@ import { getMemoryStats } from "../api/memory.js";
 import { getDailyInsights, getInboxStats } from "../api/inbox.js";
 import { getAiKey } from "../api/settings.js";
 
-const STATUS_COLOR = {
-  active:       { dot: "bg-emerald-400", ring: "ring-emerald-400/30" },
-  needs_reauth: { dot: "bg-amber-400",   ring: "ring-amber-400/30"   },
-  syncing:      { dot: "bg-brand-400",   ring: "ring-brand-400/30"   },
-};
-
-const ACCOUNT_TYPE_LABEL = {
-  personal:  "Personal",
-  edu:       "Education",
-  work:      "Work",
-  freelance: "Freelance",
-};
+import { ACCOUNT_TYPE_LABEL, STATUS_COLOR } from "../constants.js";
 
 function getGreeting() {
   const h = new Date().getHours();

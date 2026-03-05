@@ -1,12 +1,17 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
+from fastapi.responses import Response
 from jose import JWTError, jwt
 
 from src.config import get_settings
 
 settings = get_settings()
+
+ACCESS_COOKIE = "access_token"
+REFRESH_COOKIE = "refresh_token"
 
 
 # ── App tokens ────────────────────────────────────────────────────────────────
@@ -36,6 +41,51 @@ def get_user_id_from_token(token: str) -> Optional[str]:
         return decode_token(token).get("sub")
     except JWTError:
         return None
+
+
+# ── Cookie helpers ────────────────────────────────────────────────────────────
+
+def _cookie_domain() -> Optional[str]:
+    """Extract the hostname for cookie domain. Returns None for localhost."""
+    host = urlparse(settings.FRONTEND_URL).hostname or ""
+    if host in ("localhost", "127.0.0.1"):
+        return None
+    return host
+
+
+def set_auth_cookies(response: Response, access: str, refresh: str) -> None:
+    """Set httpOnly access + refresh cookies on *response*."""
+    secure = settings.is_production
+    domain = _cookie_domain()
+    same_site = "lax"
+
+    response.set_cookie(
+        key=ACCESS_COOKIE,
+        value=access,
+        httponly=True,
+        secure=secure,
+        samesite=same_site,
+        domain=domain,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=refresh,
+        httponly=True,
+        secure=secure,
+        samesite=same_site,
+        domain=domain,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/auth/refresh",
+    )
+
+
+def clear_auth_cookies(response: Response) -> None:
+    """Delete both auth cookies."""
+    domain = _cookie_domain()
+    response.delete_cookie(ACCESS_COOKIE, path="/", domain=domain)
+    response.delete_cookie(REFRESH_COOKIE, path="/auth/refresh", domain=domain)
 
 
 # ── OAuth state tokens ────────────────────────────────────────────────────────

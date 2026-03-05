@@ -46,7 +46,7 @@ npm run dev
 - **AI inbox triage** — emails auto-labelled Urgent / Action Required / FYI
 - **Daily briefing** — AI-generated morning summary of what matters today
 - **Draft reply** — one-click AI draft suggestions for any email
-- **Stripe billing** — Free tier (2 accounts, 30-day depth) and Pro ($6/mo)
+- **Razorpay billing** — Free tier (2 accounts, 30-day depth) and Pro (₹499/mo or $6/mo)
 
 ---
 
@@ -59,9 +59,9 @@ npm run dev
 | Cache / Queue | Redis 7 |
 | AI | Pluggable: Anthropic, OpenAI, xAI, Google (BYOAI) |
 | Gmail | Google Gmail API v1, Cloud Pub/Sub (real-time push) |
-| Billing | Stripe Checkout + Customer Portal |
+| Billing | Razorpay Subscriptions (INR + USD) |
 | Frontend | React 18, Vite, Tailwind CSS 3, React Router 6 |
-| Auth | Google OAuth 2.0, JWT (HS256) |
+| Auth | Google OAuth 2.0, JWT (HS256) in httpOnly cookies |
 
 ---
 
@@ -78,11 +78,32 @@ See `backend/.env.production.example` for the full list.
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL |
-| `STRIPE_SECRET_KEY` | Stripe secret key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `STRIPE_PRICE_ID_PRO` | Stripe Price ID for the Pro monthly plan |
+| `RAZORPAY_KEY_ID` | Razorpay publishable key |
+| `RAZORPAY_KEY_SECRET` | Razorpay secret key |
+| `RAZORPAY_PLAN_ID_INR` | Razorpay Plan ID for INR billing |
+| `RAZORPAY_PLAN_ID_USD` | Razorpay Plan ID for USD billing |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook signing secret |
 | `PUBSUB_TOPIC` | Google Cloud Pub/Sub topic for Gmail push |
 | `ENCRYPTION_KEY` | 32-byte base64 key — generate with `scripts/generate_keys.py` |
+
+---
+
+## Authentication Flow
+
+MailMind uses **httpOnly cookies** for JWT storage — tokens are never accessible to JavaScript.
+
+1. User clicks **Continue with Google** → browser redirects to `GET /auth/google`
+2. Backend redirects to Google's consent screen with a signed CSRF state token
+3. Google redirects back to `GET /auth/google/callback` with an authorization code
+4. Backend exchanges the code for Google tokens, upserts the user and Gmail account
+5. Backend sets two **httpOnly** cookies on the redirect response:
+   - `access_token` (15 min, `path=/`) — sent on every API request
+   - `refresh_token` (7 days, `path=/auth/refresh`) — only sent to the refresh endpoint
+6. Frontend lands on `/auth/callback`, calls `GET /users/me` (cookies sent automatically), and navigates to the dashboard
+7. On 401, the axios interceptor calls `POST /auth/refresh` (refresh cookie sent automatically), which rotates both cookies
+8. Logout calls `POST /auth/logout` which clears both cookies server-side
+
+Cookie flags: `httpOnly`, `secure` (in production), `sameSite=lax`.
 
 ---
 
@@ -94,7 +115,7 @@ alembic downgrade -1     # roll back one step
 alembic revision --autogenerate -m "description"   # create a new migration
 ```
 
-Migration chain: `001_initial_schema` → `002` → `003` → `004` → `005_billing_byoai`
+Migration chain: `001_initial_schema` → `002` → `003` → `004` → `005_billing_byoai` → `007_composite_indexes`
 
 ---
 
@@ -170,15 +191,15 @@ cd frontend && npm install
 The `GOOGLE_REDIRECT_URI` in your `.env` must exactly match the URI registered in
 [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials.
 
-### Stripe webhook not firing locally
+### Razorpay webhook not firing locally
 
-Use the Stripe CLI to forward events:
+Use ngrok or a similar tunnel to expose your local server:
 
 ```bash
-stripe listen --forward-to localhost:8000/billing/webhook
+ngrok http 8000
 ```
 
-Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET` in your `.env`.
+Add the ngrok URL as a webhook endpoint in the Razorpay Dashboard and copy the secret into `RAZORPAY_WEBHOOK_SECRET` in your `.env`.
 
 ---
 
@@ -204,7 +225,7 @@ GET /health
 - [ ] **Google OAuth verification** — submit app for Google's OAuth consent screen review to remove the "unverified app" warning for new users
 - [ ] **Onboard first 10 users** — share the Vercel URL, collect feedback, watch logs
 - [ ] **Custom domain** — add your domain in Vercel + Railway and update `GOOGLE_REDIRECT_URI`
-- [ ] **Rate limiting** — add `slowapi` middleware to prevent abuse of the AI endpoints
+- [x] **Rate limiting** — `slowapi` middleware added on auth, billing, and AI endpoints
 - [ ] **Email notifications** — send a welcome email on sign-up (Resend or SendGrid)
 - [ ] **Attachment support** — store and search email attachments in memory
 - [ ] **Mobile app** — React Native / Expo shell wrapping the existing API

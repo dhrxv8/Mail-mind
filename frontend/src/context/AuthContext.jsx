@@ -8,18 +8,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
     try {
       const { data } = await apiClient.get("/users/me");
       setUser(data);
     } catch {
-      // Token is invalid or expired and refresh also failed
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
       setUser(null);
     } finally {
       setLoading(false);
@@ -30,23 +22,17 @@ export function AuthProvider({ children }) {
     fetchUser();
   }, [fetchUser]);
 
-  const login = useCallback(
-    (accessToken, refreshToken) => {
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("refresh_token", refreshToken);
-      fetchUser();
-    },
-    [fetchUser]
-  );
-
-  const logout = useCallback(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  const logout = useCallback(async () => {
+    try {
+      await apiClient.post("/auth/logout");
+    } catch {
+      /* best effort */
+    }
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, fetchUser }}>
+    <AuthContext.Provider value={{ user, loading, logout, fetchUser }}>
       {children}
     </AuthContext.Provider>
   );

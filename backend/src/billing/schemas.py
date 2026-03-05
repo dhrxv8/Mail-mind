@@ -1,8 +1,10 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class CreateSubscriptionRequest(BaseModel):
-    currency: str = "inr"
+    currency: Literal["inr", "usd"] = "inr"
 
 
 class CreateSubscriptionResponse(BaseModel):
@@ -11,6 +13,6 @@ class CreateSubscriptionResponse(BaseModel):
 
 
 class VerifyPaymentRequest(BaseModel):
-    razorpay_payment_id: str
-    razorpay_subscription_id: str
-    razorpay_signature: str
+    razorpay_payment_id: str = Field(..., min_length=4, max_length=64)
+    razorpay_subscription_id: str = Field(..., min_length=4, max_length=64)
+    razorpay_signature: str = Field(..., min_length=16, max_length=256)

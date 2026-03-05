@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import EmailDraftModal from "../components/EmailDraftModal.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import { useAccounts } from "../hooks/useAccounts.js";
 import { getInbox, markRead } from "../api/inbox.js";
+
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  const timer = useRef(null);
+  useEffect(() => {
+    timer.current = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer.current);
+  }, [value, delay]);
+  return debounced;
+}
 
 const TRIAGE_CONFIG = {
   urgent:          { label: "Urgent",          bg: "bg-red-50",     text: "text-red-600",    dot: "bg-red-400",    border: "border-red-100"   },
@@ -10,12 +20,7 @@ const TRIAGE_CONFIG = {
   fyi:             { label: "FYI",             bg: "bg-slate-50",   text: "text-slate-500",  dot: "bg-slate-300",  border: "border-slate-100" },
 };
 
-const ACCOUNT_TYPE_LABEL = {
-  personal:  "Personal",
-  edu:       "Education",
-  work:      "Work",
-  freelance: "Freelance",
-};
+import { ACCOUNT_TYPE_LABEL } from "../constants.js";
 
 export default function Inbox() {
   const { accounts } = useAccounts();
@@ -31,6 +36,8 @@ export default function Inbox() {
   const [error,    setError]    = useState(null);
   const [draftEmail, setDraftEmail] = useState(null);
 
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
   const loadInbox = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -39,7 +46,7 @@ export default function Inbox() {
       if (accountFilter)           params.account_id   = accountFilter;
       if (readFilter !== null)     params.is_read      = readFilter;
       if (triageFilter)            params.triage_label = triageFilter;
-      if (searchQuery.trim())      params.q            = searchQuery.trim();
+      if (debouncedSearch.trim())  params.q            = debouncedSearch.trim();
       const data = await getInbox(params);
       setResult(data);
     } catch {
@@ -47,10 +54,10 @@ export default function Inbox() {
     } finally {
       setLoading(false);
     }
-  }, [accountFilter, readFilter, triageFilter, searchQuery, page]);
+  }, [accountFilter, readFilter, triageFilter, debouncedSearch, page]);
 
   useEffect(() => { loadInbox(); }, [loadInbox]);
-  useEffect(() => { setPage(1); }, [accountFilter, readFilter, triageFilter, searchQuery]);
+  useEffect(() => { setPage(1); }, [accountFilter, readFilter, triageFilter, debouncedSearch]);
 
   const handleMarkRead = async (emailId) => {
     try {
@@ -206,6 +213,7 @@ function FilterPill({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={`px-3 py-1 text-xs rounded-full font-medium transition-all duration-150 ${
         active
           ? "text-white shadow-sm"

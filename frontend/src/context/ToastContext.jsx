@@ -41,6 +41,7 @@ export function ToastProvider({ children }) {
               <span>{t.message}</span>
               <button
                 onClick={() => dismiss(t.id)}
+                aria-label="Dismiss notification"
                 className="text-white/70 hover:text-white flex-shrink-0 text-lg leading-none"
               >
                 ×
