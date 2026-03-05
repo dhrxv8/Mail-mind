@@ -37,10 +37,12 @@ class Settings(BaseSettings):
     # Shared secret appended as ?token= on the webhook URL for lightweight auth
     PUBSUB_VERIFICATION_TOKEN: str = ""
 
-    # Stripe (Phase 7) — leave blank to run without billing in development
-    STRIPE_SECRET_KEY: str = ""
-    STRIPE_WEBHOOK_SECRET: str = ""
-    STRIPE_PRICE_ID_PRO: str = ""
+    # Razorpay (Phase 7) — leave blank to run without billing in development
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_PLAN_ID_INR: str = ""
+    RAZORPAY_PLAN_ID_USD: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     # App
     FRONTEND_URL: str = "http://localhost:5173"

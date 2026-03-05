@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { createCheckout } from "../api/billing.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import {
+  createSubscription,
+  verifyPayment,
+  openRazorpayCheckout,
+  detectCurrency,
+} from "../api/billing.js";
 
 export default function PaywallModal({ onClose, feature = "This feature" }) {
+  const { user, fetchUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const overlayRef = useRef(null);
@@ -15,14 +22,38 @@ export default function PaywallModal({ onClose, feature = "This feature" }) {
   const handleUpgrade = async () => {
     setLoading(true);
     setError(null);
+    const currency = detectCurrency();
     try {
-      const { url } = await createCheckout();
-      window.location.href = url;
+      const { subscription_id, razorpay_key_id } = await createSubscription(currency);
+
+      const response = await openRazorpayCheckout({
+        subscriptionId: subscription_id,
+        keyId: razorpay_key_id,
+        userName: user?.name,
+        userEmail: user?.email,
+        currency,
+      });
+
+      await verifyPayment({
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_subscription_id: response.razorpay_subscription_id,
+        razorpay_signature: response.razorpay_signature,
+      });
+
+      await fetchUser();
+      onClose();
     } catch (err) {
-      setError(err?.response?.data?.detail ?? "Failed to start checkout. Please try again.");
+      if (err?.message === "cancelled") {
+        // user closed the modal — not an error
+      } else {
+        setError(err?.response?.data?.detail ?? "Payment failed. Please try again.");
+      }
+    } finally {
       setLoading(false);
     }
   };
+
+  const priceLabel = detectCurrency() === "inr" ? "₹499/mo" : "$6/mo";
 
   return (
     <div
@@ -79,7 +110,7 @@ export default function PaywallModal({ onClose, feature = "This feature" }) {
                   <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Loading...
                 </>
-              ) : "Upgrade — $6/mo"}
+              ) : `Upgrade — ${priceLabel}`}
             </button>
             <button
               onClick={onClose}

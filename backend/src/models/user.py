@@ -22,8 +22,8 @@ class User(Base):
     name = Column(String, nullable=False)
     avatar_url = Column(String, nullable=True)
     plan = Column(Enum(Plan, name="plan"), nullable=False, default=Plan.free)
-    stripe_customer_id = Column(String, nullable=True, unique=True)
-    stripe_subscription_id = Column(String, nullable=True, unique=True)
+    razorpay_customer_id = Column(String, nullable=True, unique=True)
+    razorpay_subscription_id = Column(String, nullable=True, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

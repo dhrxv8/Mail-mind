@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { createCheckout, getBillingPortal } from "../api/billing.js";
+import {
+  createSubscription,
+  verifyPayment,
+  openRazorpayCheckout,
+  detectCurrency,
+} from "../api/billing.js";
 
 export default function BillingCard() {
-  const { user } = useAuth();
+  const { user, fetchUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const isPro = user?.plan === "pro";
@@ -11,26 +16,35 @@ export default function BillingCard() {
   const handleUpgrade = async () => {
     setLoading(true);
     setError(null);
+    const currency = detectCurrency();
     try {
-      const { url } = await createCheckout();
-      window.location.href = url;
+      const { subscription_id, razorpay_key_id } = await createSubscription(currency);
+
+      const response = await openRazorpayCheckout({
+        subscriptionId: subscription_id,
+        keyId: razorpay_key_id,
+        userName: user?.name,
+        userEmail: user?.email,
+        currency,
+      });
+
+      await verifyPayment({
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_subscription_id: response.razorpay_subscription_id,
+        razorpay_signature: response.razorpay_signature,
+      });
+
+      await fetchUser();
     } catch (err) {
-      setError(err?.response?.data?.detail ?? "Failed to start checkout. Please try again.");
+      if (err?.message !== "cancelled") {
+        setError(err?.response?.data?.detail ?? "Payment failed. Please try again.");
+      }
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleManage = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { url } = await getBillingPortal();
-      window.location.href = url;
-    } catch (err) {
-      setError(err?.response?.data?.detail ?? "Failed to open billing portal.");
-      setLoading(false);
-    }
-  };
+  const priceLabel = detectCurrency() === "inr" ? "₹499/mo" : "$6/mo";
 
   return (
     <div>
@@ -51,13 +65,6 @@ export default function BillingCard() {
               Unlimited accounts · full email history · real-time sync.
             </p>
           </div>
-          <button
-            onClick={handleManage}
-            disabled={loading}
-            className="text-sm text-brand-600 font-medium hover:text-brand-700 transition-colors disabled:opacity-60 flex-shrink-0 ml-4"
-          >
-            {loading ? "Loading…" : "Manage →"}
-          </button>
         </div>
       ) : (
         <div>
@@ -74,10 +81,15 @@ export default function BillingCard() {
             <button
               onClick={handleUpgrade}
               disabled={loading}
-              className="flex-shrink-0 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 hover:opacity-90 active:scale-95"
+              className="flex-shrink-0 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 hover:opacity-90 active:scale-95 flex items-center gap-2"
               style={{ background: "linear-gradient(135deg, #4f46e5, #6366f1)" }}
             >
-              {loading ? "Loading…" : "Upgrade — $6/mo"}
+              {loading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Loading...
+                </>
+              ) : `Upgrade — ${priceLabel}`}
             </button>
           </div>
           <ul className="space-y-2">

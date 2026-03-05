@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { detectCurrency } from "../api/billing.js";
 
 const FEATURES = [
   {
@@ -261,72 +262,7 @@ export default function Landing() {
         </section>
 
         {/* Pricing */}
-        <section className="py-24 px-6 bg-slate-50/70">
-          <div className="max-w-4xl mx-auto">
-            <p className="text-center text-xs font-semibold text-brand-600 uppercase tracking-widest mb-3">Pricing</p>
-            <h2 className="text-3xl font-bold text-slate-900 text-center mb-10 tracking-tight">
-              Simple pricing
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-2xl mx-auto">
-              {/* Free */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-shadow duration-300">
-                <p className="font-bold text-xl text-slate-900 mb-1">Free</p>
-                <p className="text-slate-400 text-sm mb-5">Perfect to get started</p>
-                <p className="text-4xl font-bold text-slate-900 mb-6 tracking-tight">
-                  $0
-                  <span className="text-slate-400 text-lg font-normal">/mo</span>
-                </p>
-                <ul className="space-y-2.5 text-sm text-slate-600 mb-6">
-                  {FREE_FEATURES.map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/login"
-                  className="block text-center border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all"
-                >
-                  Get Started Free
-                </Link>
-              </div>
-
-              {/* Pro */}
-              <div className="rounded-2xl p-6 relative overflow-hidden shadow-glow-sm hover:shadow-glow transition-shadow duration-300"
-                   style={{ background: "linear-gradient(160deg, #1e1b4b 0%, #312e81 100%)" }}>
-                <div className="absolute -top-3 left-6 text-xs px-3 py-1 rounded-full font-semibold text-amber-900"
-                     style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)" }}>
-                  Most Popular
-                </div>
-                <p className="font-bold text-xl text-white mb-1">Pro</p>
-                <p className="text-indigo-300 text-sm mb-5">For power users</p>
-                <p className="text-4xl font-bold text-white mb-6 tracking-tight">
-                  $6
-                  <span className="text-indigo-300 text-lg font-normal">/mo</span>
-                </p>
-                <ul className="space-y-2.5 text-sm text-indigo-200 mb-6">
-                  {PRO_FEATURES.map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/login"
-                  className="block text-center bg-white text-brand-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-50 transition-colors"
-                >
-                  Start Free, Upgrade Anytime
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
+        <PricingSection />
 
         {/* Founder story */}
         <section className="py-20 px-6">
@@ -427,6 +363,81 @@ function FaqItem({ question, answer }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function PricingSection() {
+  const currency = useMemo(() => detectCurrency(), []);
+  const isINR = currency === "inr";
+  const proPrice = isINR ? "₹499" : "$6";
+
+  return (
+    <section className="py-24 px-6 bg-slate-50/70">
+      <div className="max-w-4xl mx-auto">
+        <p className="text-center text-xs font-semibold text-brand-600 uppercase tracking-widest mb-3">Pricing</p>
+        <h2 className="text-3xl font-bold text-slate-900 text-center mb-10 tracking-tight">
+          Simple pricing
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-2xl mx-auto">
+          {/* Free */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-shadow duration-300">
+            <p className="font-bold text-xl text-slate-900 mb-1">Free</p>
+            <p className="text-slate-400 text-sm mb-5">Perfect to get started</p>
+            <p className="text-4xl font-bold text-slate-900 mb-6 tracking-tight">
+              {isINR ? "₹0" : "$0"}
+              <span className="text-slate-400 text-lg font-normal">/mo</span>
+            </p>
+            <ul className="space-y-2.5 text-sm text-slate-600 mb-6">
+              {FREE_FEATURES.map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              to="/login"
+              className="block text-center border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all"
+            >
+              Get Started Free
+            </Link>
+          </div>
+
+          {/* Pro */}
+          <div className="rounded-2xl p-6 relative overflow-hidden shadow-glow-sm hover:shadow-glow transition-shadow duration-300"
+               style={{ background: "linear-gradient(160deg, #1e1b4b 0%, #312e81 100%)" }}>
+            <div className="absolute -top-3 left-6 text-xs px-3 py-1 rounded-full font-semibold text-amber-900"
+                 style={{ background: "linear-gradient(135deg, #fef3c7, #fde68a)" }}>
+              Most Popular
+            </div>
+            <p className="font-bold text-xl text-white mb-1">Pro</p>
+            <p className="text-indigo-300 text-sm mb-5">For power users</p>
+            <p className="text-4xl font-bold text-white mb-6 tracking-tight">
+              {proPrice}
+              <span className="text-indigo-300 text-lg font-normal">/mo</span>
+            </p>
+            <ul className="space-y-2.5 text-sm text-indigo-200 mb-6">
+              {PRO_FEATURES.map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              to="/login"
+              className="block text-center bg-white text-brand-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-50 transition-colors"
+            >
+              Start Free, Upgrade Anytime
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

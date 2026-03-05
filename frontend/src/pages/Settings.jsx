@@ -66,7 +66,6 @@ export default function Settings() {
     const accountAdded  = searchParams.get("account_added");
     const reauthed      = searchParams.get("reauthed");
     const oauthError    = searchParams.get("error");
-    const upgradeStatus = searchParams.get("upgrade");
 
     if (accountAdded === "true") {
       setBanner({ type: "success", message: "Gmail account connected successfully. Starting sync…" });
@@ -85,12 +84,6 @@ export default function Settings() {
     } else if (reauthed === "true") {
       setBanner({ type: "success", message: "Account re-authenticated successfully." });
       refetch(); setSearchParams({}, { replace: true });
-    } else if (upgradeStatus === "success") {
-      setBanner({ type: "success", message: "Welcome to Pro! Your plan has been upgraded." });
-      fetchUser(); setSearchParams({}, { replace: true });
-    } else if (upgradeStatus === "cancelled") {
-      setBanner({ type: "error", message: "Upgrade cancelled. You're still on the Free plan." });
-      setSearchParams({}, { replace: true });
     } else if (oauthError) {
       const messages = {
         account_limit:         "You've reached the Free plan limit of 2 accounts. Upgrade to Pro for unlimited.",

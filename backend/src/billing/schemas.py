@@ -1,9 +1,16 @@
 from pydantic import BaseModel
 
 
-class CheckoutSessionResponse(BaseModel):
-    url: str
+class CreateSubscriptionRequest(BaseModel):
+    currency: str = "inr"
 
 
-class BillingPortalResponse(BaseModel):
-    url: str
+class CreateSubscriptionResponse(BaseModel):
+    subscription_id: str
+    razorpay_key_id: str
+
+
+class VerifyPaymentRequest(BaseModel):
+    razorpay_payment_id: str
+    razorpay_subscription_id: str
+    razorpay_signature: str
