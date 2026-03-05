@@ -1,6 +1,10 @@
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
+
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -16,7 +20,10 @@ from src.accounts.router import router as accounts_router
 from src.ai.router import router as ai_router
 from src.auth.router import router as auth_router
 from src.billing.router import router as billing_router
+from sqlalchemy import text
+
 from src.config import get_settings
+from src.database import engine
 from src.gmail.router import router as gmail_router
 from src.inbox.router import emails_router, router as inbox_router
 from src.insights.router import router as insights_router
@@ -33,6 +40,14 @@ settings = get_settings()
 _startup_time = time.time()
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
+if settings.APP_ENV == "production" and os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        environment=settings.APP_ENV,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=0.1,
+    )
 
 
 @asynccontextmanager
@@ -123,10 +138,20 @@ async def health_check():
         redis_ok = True
     except Exception:
         log.debug("Redis health check failed", exc_info=True)
+
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        log.debug("DB health check failed", exc_info=True)
+
     return {
         "status": "ok",
         "version": "1.0.0",
         "env": settings.APP_ENV,
         "uptime_seconds": uptime_s,
         "redis": "ok" if redis_ok else "degraded",
+        "database": "ok" if db_ok else "degraded",
     }

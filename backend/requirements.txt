@@ -28,6 +28,9 @@ python-dateutil==2.9.0
 # Phase 7 — Billing (Razorpay)
 razorpay==1.4.2
 
+# Error tracking
+sentry-sdk[fastapi]==2.19.2
+
 # Dev / test
 pytest==8.3.4
 pytest-asyncio==0.24.0

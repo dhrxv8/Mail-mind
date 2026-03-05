@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TriageLabel(str, Enum):
@@ -59,6 +59,6 @@ class DraftResponse(BaseModel):
 
 
 class SendRequest(BaseModel):
-    draft: str
-    to: str
-    subject: str
+    draft: str = Field(..., min_length=1, max_length=524_288)  # 512KB body
+    to: str = Field(..., min_length=1, max_length=254)  # RFC 5321
+    subject: str = Field(..., min_length=1, max_length=998)  # RFC 5322

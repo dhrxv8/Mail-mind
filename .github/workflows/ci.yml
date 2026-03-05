@@ -22,6 +22,20 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m py_compile main.py
       - run: python -m py_compile src/config.py
+      - run: python -m pytest tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          SECRET_KEY: test-secret-key-that-is-at-least-32-chars-long
+          ENCRYPTION_KEY: QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=
+          GOOGLE_CLIENT_ID: test
+          GOOGLE_CLIENT_SECRET: test
+          APP_ENV: test
+          RAZORPAY_KEY_ID: rzp_test
+          RAZORPAY_KEY_SECRET: rzp_test
+          RAZORPAY_PLAN_ID_INR: plan_inr
+          RAZORPAY_PLAN_ID_USD: plan_usd
+          RAZORPAY_WEBHOOK_SECRET: whsec_test
 
   frontend:
     runs-on: ubuntu-latest
