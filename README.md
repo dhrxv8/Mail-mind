@@ -154,7 +154,7 @@ cd backend && railway up
 ### Frontend → Vercel
 
 1. Import the repo on Vercel, set **Root Directory** to `frontend/`, **Framework** to Vite
-2. Add environment variable: `VITE_API_URL=https://your-api.railway.app`
+2. Set `VITE_API_URL` to your deployed backend URL, for example `https://<your-backend-domain>`
 3. Click **Deploy** — Vercel runs `npm install && npm run build` automatically
 
 ### Worker → Railway (separate service)
