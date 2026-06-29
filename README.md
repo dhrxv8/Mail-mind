@@ -4,6 +4,12 @@ Your AI email assistant that actually knows you.
 
 Connect multiple Gmail accounts, bring your own AI key (Claude, GPT, Grok, or Gemini), and build a personal memory layer that compounds over time.
 
+## Status And Safety Note
+
+MailMind is an ambitious full-stack product prototype. Because it touches Gmail OAuth, email content, encrypted tokens, vector memory, AI providers, and billing, it should go through a dedicated security, privacy, and compliance review before any production launch or public user onboarding.
+
+This repository is useful as a portfolio signal for full-stack AI product architecture, but it should be treated as pre-production unless deployment, OAuth verification, logging, data retention, and billing flows have been fully reviewed.
+
 ---
 
 ## Quick Start (Local)
@@ -74,7 +80,7 @@ See `backend/.env.production.example` for the full list.
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string (used by arq too) |
 | `SECRET_KEY` | JWT signing secret (min 32 chars) |
-| `ENCRYPTION_KEY` | 32-byte base64 AES-256 key — see Troubleshooting |
+| `ENCRYPTION_KEY` | 32-byte base64 AES-256 key — generate with `scripts/generate_keys.py` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL |
@@ -84,7 +90,6 @@ See `backend/.env.production.example` for the full list.
 | `RAZORPAY_PLAN_ID_USD` | Razorpay Plan ID for USD billing |
 | `RAZORPAY_WEBHOOK_SECRET` | Razorpay webhook signing secret |
 | `PUBSUB_TOPIC` | Google Cloud Pub/Sub topic for Gmail push |
-| `ENCRYPTION_KEY` | 32-byte base64 key — generate with `scripts/generate_keys.py` |
 
 ---
 
@@ -213,9 +218,14 @@ Disabled automatically when `APP_ENV=production`.
 
 ## Health Check
 
-```
+```http
 GET /health
-→ {"status":"ok","version":"1.0.0","env":"development","uptime_seconds":42,"redis":"ok"}
+```
+
+Example response:
+
+```json
+{"status":"ok","version":"1.0.0","env":"development","uptime_seconds":42,"redis":"ok"}
 ```
 
 ---
